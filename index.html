@@ -27,17 +27,17 @@
 <body>
     <div id="root"></div>
 
-    <!-- React and ReactDOM CDNs -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- React and ReactDOM CDNs (Updated to latest stable versions) -->
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
     <!-- Babel Standalone for JSX transformation -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
 
-    <!-- Firebase CDNs -->
+    <!-- Firebase CDNs (Updated to latest stable version) -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, query, serverTimestamp, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, doc, onSnapshot, query, serverTimestamp, orderBy, deleteDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
         
         // Firebase configuration
         const __app_id = 'possible-edit';
@@ -87,6 +87,35 @@
             return d.toLocaleString();
         };
 
+        // Error Boundary Component
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, errorMessage: '' };
+            }
+
+            static getDerivedStateFromError(error) {
+                return { hasError: true, errorMessage: error.message || 'Something went wrong.' };
+            }
+
+            componentDidCatch(error, errorInfo) {
+                console.error("ErrorBoundary caught error:", error, errorInfo);
+            }
+
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="container mx-auto p-4 text-center">
+                            <p className="text-red-500 text-sm font-medium">
+                                {this.state.errorMessage} Please refresh the page or try again later.
+                            </p>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+
         const App = () => {
             const [userId, setUserId] = React.useState(null);
             const [isAdmin, setIsAdmin] = React.useState(false);
@@ -94,6 +123,7 @@
             const [adminPassword, setAdminPassword] = React.useState('');
             const [editorPassword, setEditorPassword] = React.useState('');
             const [projects, setProjects] = React.useState([]);
+            const [isLoading, setIsLoading] = React.useState(true);
             const [message, setMessage] = React.useState({ text: '', type: '' });
             const [showAddProjectModal, setShowAddProjectModal] = React.useState(false);
             const [currentTab, setCurrentTab] = React.useState('active');
@@ -189,7 +219,7 @@
                     console.log("🛑 Cleaning up auth listener.");
                     unsubscribe();
                 };
-            }, []);
+            }, [showMessage]);
 
             React.useEffect(() => {
                 console.log("🔄 Setting up real-time Firestore listener...");
@@ -211,19 +241,23 @@
                         });
                         console.log(`✅ Projects loaded: ${fetchedProjects.length}`);
                         setProjects(fetchedProjects);
+                        setIsLoading(false);
                     } catch (err) {
                         console.error("❌ Snapshot parse error:", err);
                         showMessage("Error loading projects. Please refresh.", "error");
+                        setIsLoading(false);
                     }
                 }, (error) => {
                     console.error("❌ Firestore listener failed:", error);
                     showMessage("Error fetching projects. Please refresh.", "error");
+                    setIsLoading(false);
                 });
                 return () => {
                     console.log("🛑 Firestore listener cleaned up.");
+                    setIsLoading(true);
                     unsubscribe();
                 };
-            }, []);
+            }, [showMessage]);
 
             const handleAdminLogin = async () => {
                 console.log("Admin Login attempt.");
@@ -461,127 +495,133 @@
             };
 
             return (
-                <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col">
-                    {message.text && (
-                        <div className={`fixed top-3 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-md z-50 bg-opacity-90 text-sm font-medium
-                            ${message.type === 'success' ? 'bg-green-500 text-white' : ''}
-                            ${message.type === 'error' ? 'bg-red-500 text-white' : ''}
-                            ${message.type === 'info' ? 'bg-blue-500 text-white' : ''}`}>
-                            {message.text}
-                        </div>
-                    )}
-                    <header className="bg-white border-b border-gray-200 p-3">
-                        <div className="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-                            <h1 className="text-xl sm:text-2xl font-bold">Possible Studio Edit</h1>
-                            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-                                {isAdmin || isEditor ? (
-                                    <button
-                                        onClick={handleLogout}
-                                        className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-1.5 px-4 rounded-md transition duration-200 w-full sm:w-auto"
-                                    >
-                                        Logout
-                                    </button>
-                                ) : (
-                                    <div className="flex items-center gap-2 flex-wrap w-full">
-                                        <input
-                                            type="password"
-                                            placeholder="Admin Password"
-                                            className="p-1.5 rounded-md border border-gray-300 text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-500 text-sm flex-1 min-w-[100px]"
-                                            value={adminPassword}
-                                            onChange={(e) => setAdminPassword(e.target.value)}
-                                        />
-                                        <button
-                                            onClick={handleAdminLogin}
-                                            className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-sm font-medium py-1.5 px-3 rounded-md transition duration-200"
-                                        >
-                                            Admin
-                                        </button>
-                                        <input
-                                            type="password"
-                                            placeholder="Editor Password"
-                                            className="p-1.5 rounded-md border border-gray-300 text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-500 text-sm flex-1 min-w-[100px]"
-                                            value={editorPassword}
-                                            onChange={(e) => setEditorPassword(e.target.value)}
-                                        />
-                                        <button
-                                            onClick={handleEditorLogin}
-                                            className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-sm font-medium py-1.5 px-3 rounded-md transition duration-200"
-                                        >
-                                            Editor
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </header>
-                    <main className="container mx-auto p-4 flex-grow max-w-6xl">
-                        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
-                            <div className="flex flex-col sm:flex-row gap-2">
-                                <button
-                                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition duration-200
-                                        ${currentTab === 'active' ? 'bg-yellow-500 text-gray-900' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                                    onClick={() => setCurrentTab('active')}
-                                >
-                                    Active Projects
-                                </button>
-                                <button
-                                    className={`px-4 py-1.5 rounded-md text-sm font-medium transition duration-200
-                                        ${currentTab === 'completed' ? 'bg-yellow-500 text-gray-900' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
-                                    onClick={() => setCurrentTab('completed')}
-                                >
-                                    Completed
-                                </button>
-                            </div>
-                            <span className="px-3 py-1 rounded-md text-sm font-medium bg-gray-800 text-white">
-                                Active Videos: {totalActiveVideos}
-                            </span>
-                        </div>
-                        {isAdmin && (
-                            <div className="mb-6 text-center">
-                                <button
-                                    onClick={() => setShowAddProjectModal(true)}
-                                    className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-medium py-2 px-6 rounded-md transition duration-200"
-                                >
-                                    + Add Project
-                                </button>
+                <ErrorBoundary>
+                    <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col">
+                        {message.text && (
+                            <div className={`fixed top-3 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-md z-50 bg-opacity-90 text-sm font-medium
+                                ${message.type === 'success' ? 'bg-green-500 text-white' : ''}
+                                ${message.type === 'error' ? 'bg-red-500 text-white' : ''}
+                                ${message.type === 'info' ? 'bg-blue-500 text-white' : ''}`}>
+                                {message.text}
                             </div>
                         )}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {getFilteredProjects().length === 0 ? (
-                                <p className="col-span-full text-center text-gray-600 text-sm py-8">
-                                    {currentTab === 'active' ? 'No active projects found.' : 'No completed or dropped projects.'}
-                                </p>
-                            ) : (
-                                getFilteredProjects().map(project => (
-                                    <ProjectCard
-                                        key={project.id}
-                                        project={project}
-                                        calculateDaysAfterShoot={calculateDaysAfterShoot}
-                                        calculateRemainingDays={calculateRemainingDays}
-                                        onUpdateStatus={handleUpdateProjectStatus}
-                                        onEditProject={handleEditProject}
-                                        onApproveStatusChange={handleApproveStatusChange}
-                                        onRejectStatusChange={handleRejectStatusChange}
-                                        onDeleteProject={handleDeleteProject}
-                                        isAdmin={isAdmin}
-                                        isEditor={isEditor}
-                                        currentUserId={userId}
-                                    />
-                                ))
+                        <header className="bg-white border-b border-gray-200 p-3">
+                            <div className="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+                                <h1 className="text-xl sm:text-2xl font-bold">Possible Studio Edit</h1>
+                                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                                    {isAdmin || isEditor ? (
+                                        <button
+                                            onClick={handleLogout}
+                                            className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-1.5 px-4 rounded-md transition duration-200 w-full sm:w-auto"
+                                        >
+                                            Logout
+                                        </button>
+                                    ) : (
+                                        <div className="flex items-center gap-2 flex-wrap w-full">
+                                            <input
+                                                type="password"
+                                                placeholder="Admin Password"
+                                                className="p-1.5 rounded-md border border-gray-300 text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-500 text-sm flex-1 min-w-[100px]"
+                                                value={adminPassword}
+                                                onChange={(e) => setAdminPassword(e.target.value)}
+                                            />
+                                            <button
+                                                onClick={handleAdminLogin}
+                                                className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-sm font-medium py-1.5 px-3 rounded-md transition duration-200"
+                                            >
+                                                Admin
+                                            </button>
+                                            <input
+                                                type="password"
+                                                placeholder="Editor Password"
+                                                className="p-1.5 rounded-md border border-gray-300 text-gray-900 focus:outline-none focus:ring-1 focus:ring-yellow-500 text-sm flex-1 min-w-[100px]"
+                                                value={editorPassword}
+                                                onChange={(e) => setEditorPassword(e.target.value)}
+                                            />
+                                            <button
+                                                onClick={handleEditorLogin}
+                                                className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 text-sm font-medium py-1.5 px-3 rounded-md transition duration-200"
+                                            >
+                                                Editor
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </header>
+                        <main className="container mx-auto p-4 flex-grow max-w-6xl">
+                            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+                                <div className="flex flex-col sm:flex-row gap-2">
+                                    <button
+                                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition duration-200
+                                            ${currentTab === 'active' ? 'bg-yellow-500 text-gray-900' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                        onClick={() => setCurrentTab('active')}
+                                    >
+                                        Active Projects
+                                    </button>
+                                    <button
+                                        className={`px-4 py-1.5 rounded-md text-sm font-medium transition duration-200
+                                            ${currentTab === 'completed' ? 'bg-yellow-500 text-gray-900' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                                        onClick={() => setCurrentTab('completed')}
+                                    >
+                                        Completed
+                                    </button>
+                                </div>
+                                <span className="px-3 py-1 rounded-md text-sm font-medium bg-gray-800 text-white">
+                                    Active Videos: {totalActiveVideos}
+                                </span>
+                            </div>
+                            {isAdmin && (
+                                <div className="mb-6 text-center">
+                                    <button
+                                        onClick={() => setShowAddProjectModal(true)}
+                                        className="bg-yellow-500 hover:bg-yellow-600 text-gray-900 font-medium py-2 px-6 rounded-md transition duration-200"
+                                    >
+                                        + Add Project
+                                    </button>
+                                </div>
                             )}
-                        </div>
-                    </main>
-                    <footer className="bg-white border-t border-gray-200 text-gray-600 text-center p-3 text-sm">
-                        <p>© {new Date().getFullYear()} Possible Studio Edit</p>
-                    </footer>
-                    {showAddProjectModal && (
-                        <AddProjectModal
-                            onClose={() => setShowAddProjectModal(false)}
-                            onAddProject={handleAddProject}
-                            isAdmin={isAdmin}
-                        />
-                    )}
-                </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {isLoading ? (
+                                    <p className="col-span-full text-center text-gray-600 text-sm py-8">
+                                        Loading projects...
+                                    </p>
+                                ) : getFilteredProjects().length === 0 ? (
+                                    <p className="col-span-full text-center text-gray-600 text-sm py-8">
+                                        {currentTab === 'active' ? 'No active projects found.' : 'No completed or dropped projects.'}
+                                    </p>
+                                ) : (
+                                    getFilteredProjects().map(project => (
+                                        <ProjectCard
+                                            key={project.id}
+                                            project={project}
+                                            calculateDaysAfterShoot={calculateDaysAfterShoot}
+                                            calculateRemainingDays={calculateRemainingDays}
+                                            onUpdateStatus={handleUpdateProjectStatus}
+                                            onEditProject={handleEditProject}
+                                            onApproveStatusChange={handleApproveStatusChange}
+                                            onRejectStatusChange={handleRejectStatusChange}
+                                            onDeleteProject={handleDeleteProject}
+                                            isAdmin={isAdmin}
+                                            isEditor={isEditor}
+                                            currentUserId={userId}
+                                        />
+                                    ))
+                                )}
+                            </div>
+                        </main>
+                        <footer className="bg-white border-t border-gray-200 text-gray-600 text-center p-3 text-sm">
+                            <p>© {new Date().getFullYear()} Possible Studio Edit</p>
+                        </footer>
+                        {showAddProjectModal && (
+                            <AddProjectModal
+                                onClose={() => setShowAddProjectModal(false)}
+                                onAddProject={handleAddProject}
+                                isAdmin={isAdmin}
+                            />
+                        )}
+                    </div>
+                </ErrorBoundary>
             );
         };
 
