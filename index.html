@@ -106,6 +106,11 @@
                 return () => clearTimeout(timer);
             }, []);
 
+            // Calculate total active videos (excluding completed and dropped)
+            const totalActiveVideos = React.useMemo(() => {
+                return projects.filter(project => project.status !== 'completed' && project.status !== 'dropped').length;
+            }, [projects]);
+
             // Initialize authentication
             React.useEffect(() => {
                 console.log("🔄 Initializing Firebase authentication...");
@@ -507,12 +512,17 @@
                         </div>
                     </header>
                     <main className="container mx-auto p-6 flex-grow max-w-7xl">
-                        <div className="flex justify-center mb-10">
+                        <div className="flex justify-center mb-10 space-x-4">
                             <button
                                 className="px-8 py-4 rounded-full text-xl font-bold bg-yellow-400 text-black shadow-xl transition duration-300 ease-in-out transform hover:scale-105"
                             >
                                 All Projects
                             </button>
+                            <div className="flex items-center">
+                                <span className="px-4 py-2 rounded-full text-lg font-semibold bg-gray-800 text-white shadow-md">
+                                    Active Videos: {totalActiveVideos}
+                                </span>
+                            </div>
                         </div>
                         {isAdmin && (
                             <div className="mb-10 text-center">
