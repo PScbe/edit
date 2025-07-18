@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Possible Studio Edit</title>
-    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Inter Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -27,13 +25,10 @@
 <body>
     <div id="root"></div>
 
-    <!-- React and ReactDOM CDNs (Updated to latest stable versions) -->
     <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
-    <!-- Babel Standalone for JSX transformation -->
     <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
 
-    <!-- Firebase CDNs (Updated to latest stable version) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
@@ -118,7 +113,8 @@
 
         const App = () => {
             const [userId, setUserId] = React.useState(null);
-            const [isAdmin, setIsAdmin] = React.useState(false);
+            const [isAdmin, setIsAdmin] = React.useState(false); // Regular Admin (1122)
+            const [isUrgentAdmin, setIsUrgentAdmin] = React.useState(false); // Urgent Admin (9361)
             const [isEditor, setIsEditor] = React.useState(false);
             const [adminPassword, setAdminPassword] = React.useState('');
             const [editorPassword, setEditorPassword] = React.useState('');
@@ -127,6 +123,7 @@
             const [message, setMessage] = React.useState({ text: '', type: '' });
             const [showAddProjectModal, setShowAddProjectModal] = React.useState(false);
             const [currentTab, setCurrentTab] = React.useState('active');
+            const [urgentProjectId, setUrgentProjectId] = React.useState(null); // To track the urgent project
 
             const showMessage = React.useCallback((text, type) => {
                 console.log(`Message: ${type.toUpperCase()} - ${text}`);
@@ -168,6 +165,10 @@
                 }
 
                 return filteredProjects.sort((a, b) => {
+                    // Urgent project at the very top
+                    if (a.isUrgent && !b.isUrgent) return -1;
+                    if (!a.isUrgent && b.isUrgent) return 1;
+
                     const statusOrder = { 'on process': 1, 'on hold': 2, 'completed': 3, 'dropped': 4 };
                     const statusA = statusOrder[a.status] || 99;
                     const statusB = statusOrder[b.status] || 99;
@@ -241,6 +242,9 @@
                         });
                         console.log(`✅ Projects loaded: ${fetchedProjects.length}`);
                         setProjects(fetchedProjects);
+                        // Find if any project is urgent and set urgentProjectId
+                        const urgentProject = fetchedProjects.find(p => p.isUrgent);
+                        setUrgentProjectId(urgentProject ? urgentProject.id : null);
                         setIsLoading(false);
                     } catch (err) {
                         console.error("❌ Snapshot parse error:", err);
@@ -261,11 +265,25 @@
 
             const handleAdminLogin = async () => {
                 console.log("Admin Login attempt.");
+                let loginSuccess = false;
                 if (adminPassword === '1122') {
                     setIsAdmin(true);
-                    setIsEditor(false);
+                    setIsEditor(false); // Ensure editor is false when admin logs in
+                    setIsUrgentAdmin(false); // Ensure urgent admin is false for regular admin
+                    loginSuccess = true;
                     showMessage("Admin logged in successfully!", "success");
+                } else if (adminPassword === '9361') { // Changed to else if to make sure only one type of admin is logged in
+                    setIsUrgentAdmin(true);
+                    setIsAdmin(false); // Ensure regular admin is false for urgent admin
+                    setIsEditor(false); // Ensure editor is false for urgent admin
+                    loginSuccess = true;
+                    showMessage("Admin 2 logged in successfully!", "success");
                 } else {
+                    setIsAdmin(false);
+                    setIsUrgentAdmin(false);
+                }
+
+                if (!loginSuccess) {
                     showMessage("Incorrect admin password.", "error");
                 }
                 setAdminPassword('');
@@ -275,9 +293,11 @@
                 console.log("Editor Login attempt.");
                 if (editorPassword === '9042') {
                     setIsEditor(true);
-                    setIsAdmin(false);
+                    setIsAdmin(false); // Ensure admin is false when editor logs in
+                    setIsUrgentAdmin(false); // Ensure urgent admin is false when editor logs in
                     showMessage("Editor logged in successfully!", "success");
                 } else {
+                    setIsEditor(false);
                     showMessage("Incorrect editor password.", "error");
                 }
                 setEditorPassword('');
@@ -288,6 +308,7 @@
                 try {
                     if (auth) await signOut(auth);
                     setIsAdmin(false);
+                    setIsUrgentAdmin(false);
                     setIsEditor(false);
                     setUserId(null);
                     if (__initial_auth_token) {
@@ -314,6 +335,7 @@
                         status: 'on hold',
                         deadline: newProject.deadline ? new Date(newProject.deadline) : null,
                         shootDay: newProject.shootDay ? new Date(newProject.shootDay) : null,
+                        isUrgent: false, // Default to not urgent
                     });
                     console.log("handleAddProject: Document written with ID: ", docRef.id);
                     showMessage("Project added successfully!", "success");
@@ -334,7 +356,7 @@
                         console.error(`handleUpdateProjectStatus: Project ${projectId} not found.`);
                         return;
                     }
-                    if (isAdmin) {
+                    if (isAdmin) { // Only regular admin can directly update all statuses
                         const updateData = {
                             status: newStatus,
                             requestedStatus: null,
@@ -344,6 +366,10 @@
                         if (newStatus === 'completed') {
                             updateData.completedAt = serverTimestamp();
                             updateData.droppedAt = null;
+                            updateData.isUrgent = false; // Set isUrgent to false when completed by admin
+                            if (currentProject.id === urgentProjectId) {
+                                setUrgentProjectId(null); // Clear urgentProjectId if this was the urgent project
+                            }
                         } else if (newStatus === 'dropped') {
                             updateData.droppedAt = serverTimestamp();
                             updateData.completedAt = null;
@@ -385,7 +411,7 @@
 
             const handleApproveStatusChange = async (projectId) => {
                 console.log(`handleApproveStatusChange: Approving status for project ${projectId}.`);
-                if (!isAdmin) {
+                if (!isAdmin) { // Only Regular Admin can approve
                     showMessage("Permission denied.", "error");
                     console.error("handleApproveStatusChange: Permission denied.");
                     return;
@@ -408,6 +434,10 @@
                     if (newStatus === 'completed') {
                         updateData.completedAt = serverTimestamp();
                         updateData.droppedAt = null;
+                        updateData.isUrgent = false; // Set isUrgent to false when completed via approval
+                        if (projectToApprove.id === urgentProjectId) {
+                            setUrgentProjectId(null); // Clear urgentProjectId if this was the urgent project
+                        }
                     } else if (newStatus === 'dropped') {
                         updateData.droppedAt = serverTimestamp();
                         updateData.completedAt = null;
@@ -423,7 +453,7 @@
 
             const handleRejectStatusChange = async (projectId) => {
                 console.log(`handleRejectStatusChange: Rejecting status for project ${projectId}.`);
-                if (!isAdmin) {
+                if (!isAdmin) { // Only Regular Admin can reject
                     showMessage("Permission denied.", "error");
                     console.error("handleRejectStatusChange: Permission denied.");
                     return;
@@ -457,7 +487,7 @@
 
             const handleDeleteProject = async (projectId) => {
                 console.log(`handleDeleteProject: Attempting to delete project ${projectId}.`);
-                if (!isAdmin) {
+                if (!isAdmin) { // Only Regular Admin can delete
                     showMessage("Permission denied.", "error");
                     console.error("handleDeleteProject: Permission denied.");
                     return;
@@ -472,6 +502,56 @@
                     showMessage("Error deleting project.", "error");
                 }
             };
+
+            // Function to handle marking a project as urgent
+            const handleMarkUrgent = async (projectId) => {
+                console.log(`handleMarkUrgent: Attempting to mark project ${projectId} as urgent.`);
+                if (!isUrgentAdmin) { // Only urgent admin can mark urgent
+                    showMessage("Permission denied.", "error");
+                    console.error("handleMarkUrgent: Permission denied.");
+                    return;
+                }
+
+                try {
+                    // First, set isUrgent to false for the currently urgent project, if any
+                    if (urgentProjectId && urgentProjectId !== projectId) {
+                        const previousUrgentRef = doc(db, `artifacts/${__app_id}/public/data/projects`, urgentProjectId);
+                        await updateDoc(previousUrgentRef, { isUrgent: false });
+                        console.log(`Previous urgent project ${urgentProjectId} un-marked.`);
+                    }
+
+                    // Then, mark the new project as urgent
+                    const projectRef = doc(db, `artifacts/${__app_id}/public/data/projects`, projectId);
+                    await updateDoc(projectRef, { isUrgent: true });
+                    setUrgentProjectId(projectId); // Update local state
+                    console.log(`Project ${projectId} marked as urgent.`);
+                    showMessage("Project marked as urgent!", "success");
+                } catch (e) {
+                    console.error("handleMarkUrgent: Error marking project urgent: ", e);
+                    showMessage("Error marking project urgent.", "error");
+                }
+            };
+
+            // Function to handle unmarking an urgent project
+            const handleClearUrgent = async (projectId) => {
+                console.log(`handleClearUrgent: Clearing urgent status for project ${projectId}.`);
+                if (!isUrgentAdmin) { // Only urgent admin can clear urgent status
+                    showMessage("Permission denied.", "error");
+                    console.error("handleClearUrgent: Permission denied.");
+                    return;
+                }
+                try {
+                    const projectRef = doc(db, `artifacts/${__app_id}/public/data/projects`, projectId);
+                    await updateDoc(projectRef, { isUrgent: false });
+                    setUrgentProjectId(null); // Clear local state
+                    console.log(`Urgent status for project ${projectId} cleared.`);
+                    showMessage("Urgent status cleared!", "success");
+                } catch (e) {
+                    console.error("handleClearUrgent: Error clearing urgent status: ", e);
+                    showMessage("Error clearing urgent status.", "error");
+                }
+            };
+
 
             const calculateDaysAfterShoot = (shootDay) => {
                 if (!shootDay) return 'N/A';
@@ -509,7 +589,7 @@
                             <div className="container mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
                                 <h1 className="text-xl sm:text-2xl font-bold">Possible Studio Edit</h1>
                                 <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-                                    {isAdmin || isEditor ? (
+                                    {(isAdmin || isUrgentAdmin || isEditor) ? (
                                         <button
                                             onClick={handleLogout}
                                             className="bg-red-500 hover:bg-red-600 text-white text-sm font-medium py-1.5 px-4 rounded-md transition duration-200 w-full sm:w-auto"
@@ -602,8 +682,12 @@
                                             onApproveStatusChange={handleApproveStatusChange}
                                             onRejectStatusChange={handleRejectStatusChange}
                                             onDeleteProject={handleDeleteProject}
+                                            onMarkUrgent={handleMarkUrgent}
+                                            onClearUrgent={handleClearUrgent}
                                             isAdmin={isAdmin}
+                                            isUrgentAdmin={isUrgentAdmin}
                                             isEditor={isEditor}
+                                            urgentProjectId={urgentProjectId}
                                             currentUserId={userId}
                                         />
                                     ))
@@ -625,7 +709,7 @@
             );
         };
 
-        const ProjectCard = ({ project, calculateDaysAfterShoot, calculateRemainingDays, onUpdateStatus, onEditProject, onApproveStatusChange, onRejectStatusChange, onDeleteProject, isAdmin, isEditor, currentUserId }) => {
+        const ProjectCard = ({ project, calculateDaysAfterShoot, calculateRemainingDays, onUpdateStatus, onEditProject, onApproveStatusChange, onRejectStatusChange, onDeleteProject, onMarkUrgent, onClearUrgent, isAdmin, isUrgentAdmin, isEditor, urgentProjectId, currentUserId }) => {
             const [isEditing, setIsEditing] = React.useState(false);
             const [editedProjectName, setEditedProjectName] = React.useState(project.projectName);
             const [editedNote, setEditedNote] = React.useState(project.note);
@@ -649,11 +733,14 @@
 
             const currentStatusDisplay = getStatusDisplay(project.status);
             const requestedStatusDisplay = project.requestedStatus ? getStatusDisplay(project.requestedStatus) : null;
-            const cardBackgroundColor = (project.status === 'completed' || project.status === 'dropped') ? 'bg-yellow-50' : 'bg-white';
+            
+            // Highlight urgent projects
+            const cardBackgroundColor = project.isUrgent ? 'bg-red-100' : ((project.status === 'completed' || project.status === 'dropped') ? 'bg-yellow-50' : 'bg-white');
+
 
             const handleSaveEdit = () => {
                 const updatedFields = { note: editedNote };
-                if (isAdmin) updatedFields.projectName = editedProjectName;
+                if (isAdmin) updatedFields.projectName = editedProjectName; // Only regular admin can edit project name
                 onEditProject(project.id, updatedFields);
                 if (editedStatus !== project.status) onUpdateStatus(project.id, editedStatus);
                 setIsEditing(false);
@@ -674,7 +761,7 @@
                                 <label htmlFor={`projectName-${project.id}`} className="block text-xs font-medium text-gray-700 mb-1">
                                     Project Name
                                 </label>
-                                {isAdmin ? (
+                                {isAdmin ? ( // Only regular admin can edit project name
                                     <input
                                         type="text"
                                         id={`projectName-${project.id}`}
@@ -738,6 +825,11 @@
                                         Pending: {requestedStatusDisplay.text}
                                     </span>
                                 )}
+                                {project.isUrgent && (
+                                    <span className="px-2 py-0.5 rounded text-xs font-medium text-white bg-red-700 animate-pulse">
+                                        URGENT!
+                                    </span>
+                                )}
                             </div>
                             <p className="text-xs text-gray-600 break-words">
                                 <span className="font-medium">Note:</span> {project.note || 'None'}
@@ -762,7 +854,7 @@
                             </>
                         ) : (
                             <>
-                                {isAdmin && project.requestedStatus && (
+                                {isAdmin && project.requestedStatus && ( // Only regular admin can approve/reject
                                     <>
                                         <button
                                             onClick={() => onApproveStatusChange(project.id)}
@@ -778,7 +870,7 @@
                                         </button>
                                     </>
                                 )}
-                                {(isAdmin || isEditor) && (
+                                {(isAdmin || isEditor) && ( // MODIFIED HERE: Removed `isUrgentAdmin` from this condition
                                     <button
                                         onClick={() => setIsEditing(true)}
                                         className="bg-gray-500 hover:bg-gray-600 text-white text-xs font-medium py-1.5 px-3 rounded-md transition duration-200"
@@ -786,12 +878,28 @@
                                         Edit
                                     </button>
                                 )}
-                                {isAdmin && (
+                                {isAdmin && ( // Only regular admin can delete
                                     <button
                                         onClick={() => onDeleteProject(project.id)}
                                         className="bg-red-500 hover:bg-red-600 text-white text-xs font-medium py-1.5 px-3 rounded-md transition duration-200"
                                     >
                                         Delete
+                                    </button>
+                                )}
+                                {isUrgentAdmin && !project.isUrgent && urgentProjectId === null && ( // Urgent admin can mark as urgent if no other project is urgent
+                                    <button
+                                        onClick={() => onMarkUrgent(project.id)}
+                                        className="bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium py-1.5 px-3 rounded-md transition duration-200"
+                                    >
+                                        Mark Urgent
+                                    </button>
+                                )}
+                                {isUrgentAdmin && project.isUrgent && ( // Urgent admin can clear urgent status if this project is urgent
+                                    <button
+                                        onClick={() => onClearUrgent(project.id)}
+                                        className="bg-green-700 hover:bg-green-800 text-white text-xs font-medium py-1.5 px-3 rounded-md transition duration-200"
+                                    >
+                                        Clear Urgent
                                     </button>
                                 )}
                             </>
@@ -868,7 +976,7 @@
                                     required
                                 />
                             </div>
-                            {isAdmin && (
+                            {isAdmin && ( // Only regular admin can set deadline
                                 <div className="mb-3">
                                     <label htmlFor="deadline" className="block text-xs font-medium text-gray-700 mb-1">
                                         Deadline (Optional)
