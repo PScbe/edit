@@ -169,13 +169,11 @@
                     if (a.isUrgent && !b.isUrgent) return -1;
                     if (!a.isUrgent && b.isUrgent) return 1;
 
-                    // UPDATED: Added 'up next' to the status order
                     const statusOrder = { 'on process': 1, 'up next': 2, 'on hold': 3, 'completed': 4, 'dropped': 5 };
                     const statusA = statusOrder[a.status] || 99;
                     const statusB = statusOrder[b.status] || 99;
                     if (statusA !== statusB) return statusA - statusB;
                     
-                    // UPDATED: Included 'up next' in the date sorting logic for active projects
                     if (a.status === 'on process' || a.status === 'on hold' || a.status === 'up next') {
                         if (!a.shootDay && !b.shootDay) return 0;
                         if (!a.shootDay) return 1;
@@ -729,7 +727,6 @@
                     case 'completed': return { text: 'Completed', color: 'bg-green-500' };
                     case 'dropped': return { text: 'Dropped', color: 'bg-red-500' };
                     case 'on hold': return { text: 'On Hold', color: 'bg-orange-500' };
-                    // UPDATED: Added 'up next' status display
                     case 'up next': return { text: 'Up Next', color: 'bg-indigo-500' };
                     case 'on process':
                     default: return { text: 'On Process', color: 'bg-yellow-500' };
@@ -801,7 +798,6 @@
                                 >
                                     <option value="on process">On Process</option>
                                     <option value="on hold">On Hold</option>
-                                    {/* UPDATED: Added 'up next' option */}
                                     <option value="up next">Up Next</option>
                                     <option value="dropped">Dropped</option>
                                     <option value="completed">Completed</option>
@@ -875,15 +871,6 @@
                                             Reject
                                         </button>
                                     </>
-                                )}
-                                {/* UPDATED: Added 'Up Next' button for admin */}
-                                {isAdmin && !['completed', 'dropped', 'up next'].includes(project.status) && (
-                                    <button
-                                        onClick={() => onUpdateStatus(project.id, 'up next')}
-                                        className="bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-medium py-1.5 px-3 rounded-md transition duration-200"
-                                    >
-                                        Up Next
-                                    </button>
                                 )}
                                 {(isAdmin || isEditor) && (
                                     <button
