@@ -216,7 +216,7 @@
             }, []);
 
             // Calculate total active videos by summing the videos array length of all active projects
-            const totalPendingVideos = React.useMemo(() => {
+            const totalActiveVideos = React.useMemo(() => {
                 return projects
                     .filter(project => project.status !== 'completed' && project.status !== 'dropped')
                     .reduce((sum, project) => sum + (project.videos?.length || 0), 0);
@@ -551,10 +551,9 @@
                         <main className="container mx-auto p-4 flex-grow max-w-6xl">
                             <div className="mb-6">
                                 <MotherCard
-                                    totalPendingVideos={totalPendingVideos}
+                                    projects={projects}
                                     showAllVideos={showAllVideos}
                                     setShowAllVideos={setShowAllVideos}
-                                    projects={projects}
                                     urgentProjectId={urgentProjectId}
                                     formatDateToDDMMYYYY={formatDateToDDMMYYYY}
                                     formatDateTime={formatDateTime}
@@ -703,35 +702,36 @@
             );
         };
 
-        const MotherCard = ({ totalPendingVideos, showAllVideos, setShowAllVideos, projects, urgentProjectId, formatDateToDDMMYYYY, formatDateTime, isAdmin, isEditor }) => {
-            const onProcessVideoCount = projects
-                .filter(p => p.status === 'on process')
-                .reduce((sum, p) => sum + (p.videos?.filter(v => v.status === 'On Process').length || 0), 0);
-            const upNextVideoCount = projects
-                .filter(p => p.status === 'up next')
-                .reduce((sum, p) => sum + (p.videos?.length || 0), 0);
-            const pendingVideoCount = projects
+        const MotherCard = ({ projects, showAllVideos, setShowAllVideos, urgentProjectId, formatDateToDDMMYYYY, formatDateTime, isAdmin, isEditor }) => {
+            const totalActiveVideos = projects
+                .filter(project => project.status !== 'completed' && project.status !== 'dropped')
+                .reduce((sum, project) => sum + (project.videos?.length || 0), 0);
+            
+            const pendingVideosCount = projects
                 .filter(p => p.status !== 'completed' && p.status !== 'dropped')
                 .reduce((sum, p) => sum + (p.videos?.filter(v => v.status === 'Pending').length || 0), 0);
             
+            const onProcessVideoCount = projects
+                .filter(p => p.status !== 'completed' && p.status !== 'dropped')
+                .reduce((sum, p) => sum + (p.videos?.filter(v => v.status === 'On Process').length || 0), 0);
+            
+            const upNextVideoCount = projects
+                .filter(p => p.status !== 'completed' && p.status !== 'dropped')
+                .reduce((sum, p) => sum + (p.videos?.filter(v => v.status === 'Up Next').length || 0), 0);
+
             const urgentProject = projects.find(p => p.id === urgentProjectId);
 
             return (
                 <div className="bg-white rounded-md shadow-lg border border-gray-200 p-5">
-                    <div className="flex justify-between items-center">
-                        <h2 className="text-xl font-bold text-gray-900">Pending Videos</h2>
-                        <span className="text-3xl font-extrabold text-yellow-500">{totalPendingVideos}</span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 mt-4">
-                        <button className="flex-1 min-w-[100px] bg-gray-100 text-gray-800 text-sm font-medium py-2 px-4 rounded-md">
-                            Pending: {pendingVideoCount}
-                        </button>
+                    <div className="flex flex-wrap items-center gap-2 mt-4">
                         <button className="flex-1 min-w-[100px] bg-yellow-100 text-yellow-800 text-sm font-medium py-2 px-4 rounded-md">
-                            On Process: {onProcessVideoCount}
+                            Total Videos: {totalActiveVideos}
                         </button>
-                        <button className="flex-1 min-w-[100px] bg-indigo-100 text-indigo-800 text-sm font-medium py-2 px-4 rounded-md">
-                            Up Next: {upNextVideoCount}
+                        <button className="flex-1 min-w-[100px] bg-gray-100 text-gray-800 text-sm font-medium py-2 px-4 rounded-md">
+                            Pending: {pendingVideosCount}
+                        </button>
+                        <button className="flex-1 min-w-[100px] bg-blue-100 text-blue-800 text-sm font-medium py-2 px-4 rounded-md">
+                            On Process: {onProcessVideoCount}
                         </button>
                     </div>
                     
